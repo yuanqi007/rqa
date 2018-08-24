@@ -1,5 +1,6 @@
 # 策略分析
 import pandas as pd
+import numpy as np
 
 #获取数据
 def get_stock_data(stock_code, index_code, start_date, end_date):
@@ -79,3 +80,36 @@ def prod_up(date_line, return_line):
     p_up = df['rtn'].sum() / df['rtn'].count()
 
     print('上涨概率为：%f' % p_up)
+
+#计算最大连续上涨天数和最大连续下跌天数
+def max_successive_up(date_line, retrun_line):
+
+    df = pd.DataFrame({'date': date_line, 'rtn': retrun_line})
+    s = pd.Series(np.nan, index=df.index)
+    s.name = 'up'
+    df = pd.concat([df, s], axis=1)
+    df.loc[df['rtn'] > 0, 'up'] = 1
+    df.loc[df['rtn'] < 0, 'up'] = 0
+    df['up'].fillna(method='ffill', inplace=True)
+
+    rtn_list = list(df['up'])
+    successive_up_list = []
+
+    for i in range(len(rtn_list)):
+
+        if i == 0:
+            num = 1
+        else:
+            if (rtn_list[i] == rtn_list[i - 1] == 1) or (rtn_list[i] == rtn_list[i - 1] == 0):
+                num = num + 1
+            else:
+                num = 1
+
+        successive_up_list.append(num)
+
+    df['successive_up'] = successive_up_list
+
+    max_successive_up = df.loc[df['up'] == 1, 'successive_up'].sort_values('successive_up', ascending=False).iloc[0]
+    max_successive_down = df.loc[df['up'] == 0, 'successive_up'].sort_values('successive_up', ascending=False).iloc[0]
+
+    print('最大连续上涨天数为：%d，最大连续下跌天数为：%d' % (max_successive_up, max_successive_down))
