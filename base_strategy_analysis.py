@@ -113,3 +113,30 @@ def max_successive_up(date_line, retrun_line):
     max_successive_down = df.loc[df['up'] == 0, 'successive_up'].sort_values('successive_up', ascending=False).iloc[0]
 
     print('最大连续上涨天数为：%d，最大连续下跌天数为：%d' % (max_successive_up, max_successive_down))
+
+#计算单周期最大涨幅和最大跌幅
+def max_period_return(date_line, retrun_line):
+
+    df = pd.DataFrame({'date': date_line, 'rtn': retrun_line})
+    max_return = df['rtn'].max()
+    min_return = df['rtn'].min()
+
+    print('最大单周期涨幅为：%f，最大单周期跌幅为：%f' % (max_return, max_return))
+
+#计算收益波动率
+def volatility(date_line, return_line):
+    from math import sqrt
+
+    df = pd.DataFrame({'date': date_line, 'rtn': return_line})
+    vol = df['rtn'].std() * sqrt(250)
+    print('收益波动率为：%f' % vol)
+
+#计算贝塔的函数
+def beta(date_line, return_line, indexreturn_line):
+
+    df = pd.DataFrame({'date': date_line, 'rtn': return_line, 'benchmark_rtn': indexreturn_line})
+    b = df['rtn'].cov(df['benchmark_rtn']) / df['benchmark_rtn'].var()
+
+    print('beta：%f' % b)
+
+#计算alpha的函数
