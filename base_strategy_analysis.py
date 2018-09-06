@@ -140,3 +140,36 @@ def beta(date_line, return_line, indexreturn_line):
     print('beta：%f' % b)
 
 #计算alpha的函数
+def alpha(date_line, capital_line, index_line, return_line, indexreturn_line):
+
+    df = pd.DataFrame({'date': date_line,
+                       'capital': capital_line,
+                       'benchmark': index_line,
+                       'rtn': return_line,
+                       'benchmark_rtn': indexreturn_line})
+
+    df.sort_values(by='date', inplace=True)
+    df.reset_index(drop=True, inplace=True)
+
+    rng = pd.period_range(start=df['date'].iloc[0], end=df['date'].iloc[-1], freq='D')
+    rf = 0.0284 # 无风险利率取10年期国债的到期年化收益率
+
+    annual_stock = pow()
+
+
+
+    pass
+
+#计算夏普比率的函数
+def sharp_ratio(date_line, capital_line, return_line):
+
+    from math import sqrt
+
+    df = pd.DataFrame({'date': date_line, 'capital': capital_line, 'rtn': return_line})
+    df.sort_values(by='date', inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    rng = pd.period_range(start=df['date'].iloc[0], end=df['date'].iloc[-1], freq='D')
+    rf = 0.0284  # 无风险利率取10年期国债的到期年化收益率
+
+
+    pass
