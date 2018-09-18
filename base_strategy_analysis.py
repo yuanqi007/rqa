@@ -163,7 +163,7 @@ def alpha(date_line, capital_line, index_line, return_line, indexreturn_line):
     print('alpha：%f' % a)
 
 #计算夏普比率的函数
-def sharp_ratio(date_line, capital_line, return_line):
+def sharpe_ratio(date_line, capital_line, return_line):
 
     from math import sqrt
 
@@ -173,5 +173,11 @@ def sharp_ratio(date_line, capital_line, return_line):
     rng = pd.period_range(start=df['date'].iloc[0], end=df['date'].iloc[-1], freq='D')
     rf = 0.0284  # 无风险利率取10年期国债的到期年化收益率
 
+    # 账户年化收益
+    annual_stock = pow(df['capital'].iloc[-1] / df['capital'].iloc[0], 250 / len(rng)) - 1
+    # 计算收益波动率
+    vol = df['rtn'].std() * sqrt(250)
+    # 计算夏普比率
+    sharpe = (annual_stock - rng) / vol
 
-    pass
+    print('sharpe_ratio：%f' % sharpe)
