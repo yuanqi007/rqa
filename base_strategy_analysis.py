@@ -154,11 +154,13 @@ def alpha(date_line, capital_line, index_line, return_line, indexreturn_line):
     rng = pd.period_range(start=df['date'].iloc[0], end=df['date'].iloc[-1], freq='D')
     rf = 0.0284 # 无风险利率取10年期国债的到期年化收益率
 
-    annual_stock = pow()
+    annual_stock = pow(df['capital'].iloc[-1] / df['capital'].iloc[0], 250 / len(rng)) - 1 #账户年化收益
+    annual_index = pow(df['benchmark'].iloc[-1] / df['benchmark'].iloc[0], 250 / len(rng)) - 1 #基准年化收益
 
+    beta = df['rtn'].cov(df['benchmark_rtn']) / df['benchmark_rtn'].var() #计算beta值
+    a = (annual_stock - rf) - beta * (annual_index - rf) #计算alpha值
 
-
-    pass
+    print('alpha：%f' % a)
 
 #计算夏普比率的函数
 def sharp_ratio(date_line, capital_line, return_line):
