@@ -131,3 +131,16 @@ def select_date_range(stock_data, start_date=pd.to_datetime('20060101'), trade_d
 
     return  stock_data
 
+# 计算最近250天的股票，策略累计涨跌幅，以及每年（月、周）股票策略收益
+def period_return(stock_data, days=250, if_print=False):
+    '''
+
+    :param stock_data: 包含日期、股票涨跌幅和总资产跌幅的数据集
+    :param days: 最近250天
+    :param if_print: 输出最近250天的股票和策略累计涨跌幅以及每年的股票收益和策略收益
+    :return:
+    '''
+
+    df = stock_data[['code', 'date', 'change', 'capital_rtn']]
+
+    # 计算每一年（月、周）股票，资金曲线的收益
