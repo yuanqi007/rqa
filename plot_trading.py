@@ -104,7 +104,7 @@ def account(df, slippage=1.0/1000, commision_rate=2.5/1000):
         (1 - slippage - commision_rate) * (df['position'] - df['position'].shift(1)) + \
         df['change'] * df['position'].shift(1)
     # 当减仓时，计算当天资金曲线涨幅capital_rtn, capital_rtn=今天开盘卖出的position在今天的涨幅（扣除手续费）+还剩的position在今天的涨幅
-    df.loc[stock_data['position'] < df['position'].shift(1), 'capital_rtn'] = \
+    df.loc[df['position'] < df['position'].shift(1), 'capital_rtn'] = \
         (df['open'] / df['close'].shift(1) - 1) * \
         (1 - slippage - commision_rate) * \
         (df['position'].shift(1) - df['position']) + df['change'] * df['position']
@@ -144,3 +144,68 @@ def period_return(stock_data, days=250, if_print=False):
     df = stock_data[['code', 'date', 'change', 'capital_rtn']]
 
     # 计算每一年（月、周）股票，资金曲线的收益
+    year_rtn = df.set_index('date')[['change', 'capital_rtn']].resample(rule='A').apply(lambda x: (x+1.0).prod() - 1.0)
+    month_rtn = df.set_index('date')[['change', 'capital_rtn']].resample(rule='M').apply(lambda x: (x+1.0).prod() - 1.0)
+    week_rtn = df.set_index('date')[['change', 'capital_rtn']].resample(rule='W').apply(lambda x: (x+1.0).prod() - 1.0)
+
+    year_rtn.dropna(inplace=True)
+    month_rtn.dropna(inplace=True)
+    week_rtn.dropna(inplace=True)
+
+    # 计算策略的年（月、周）胜率
+    yearly_win_rate = len(year_rtn[year_rtn['capital_rtn'] > 0]) / len(year_rtn[year_rtn['capital_rtn'] != 0])
+    monthly_win_rate = len(month_rtn[month_rtn['capital_rtn'] > 0]) / len(month_rtn[month_rtn['capital_rtn'] != 0])
+    weekly_win_rate = len(week_rtn[week_rtn['capital_rtn'] > 0]) / len(week_rtn[week_rtn['capital_rtn'] != 0])
+
+    # 计算股票的年（月、周）胜率
+    yearly_win_rates = len(year_rtn[year_rtn['change'] > 0]) / len(year_rtn[year_rtn['change'] != 0])
+    monthly_win_rates = len(month_rtn[month_rtn['change'] > 0]) / len(month_rtn[month_rtn['change'] != 0])
+    weekly_win_rates = len(week_rtn[week_rtn['change'] > 0]) / len(week_rtn[week_rtn['change'] != 0])
+
+    # 计算最近days的累计涨幅
+    df = df.iloc[-days:]
+    recent_rtn_line = df[['date']]
+    recent_rtn_line['stock_rtn_line'] = (df['change'] + 1).cumprod() - 1
+    recent_rtn_line['strategy_rtn_line'] = (df['capital_rtn'] + 1).cumprod() - 1
+    recent_rtn_line.reset_index(drop=True, inplace=True)
+
+    # 输出
+    if if_print:
+        print('\n最近%s天股票和策略的累计涨幅：' % days)
+        print(recent_rtn_line)
+        print('\n过去每一年股票和策略的累计收益：')
+        print(year_rtn)
+        print('\n策略的年胜率为：%f' % yearly_win_rate)
+        print('\n股票的年胜率为：%f' % yearly_win_rates)
+        print('\n过去每一月股票和策略的累计收益：')
+        print(month_rtn)
+        print('\n策略的月胜率为：%f' % monthly_win_rate)
+        print('\n股票的月胜率为：%f' % monthly_win_rates)
+        print('\n过去每一周股票和策略的累计收益：')
+        print(week_rtn)
+        print('\n策略的周胜率为：%f' % weekly_win_rate)
+        print('\n股票的周胜率为：%f' % weekly_win_rates)
+
+    return year_rtn, month_rtn, week_rtn, recent_rtn_line
+
+# 根据每次买入结果计算相关指标
+def trade_describe(df):
+    '''
+
+    :param df: 包含日期、仓位和总资产的数据集
+    :return: 输出账户交易各项指标
+    '''
+
+    # 计算资金曲线
+    df['capital'] = (df['capital_rtn'] + 1).cumprod()
+
+    # 记录买入或加仓时的日期和初始资产
+    df.loc[df['position'] > df['position'].shift(1), 'start_date'] = df['date']
+    df.loc[df['position'] > df['position'].shift(1), 'start_capital'] = df['capital'].shift(1)
+    df.loc[df['position'] > df['position'].shift(1), 'start_stock'] = df['close'].shift(1)
+
+    # 记录卖出的日期和初始资产
+    df.loc[df['position'] < df['position'].shift(1), 'end_date'] = df['date']
+    df.loc[df['position'] < df['position'].shift(1), 'end_capital'] = df['capital'].shift(1)
+    df.loc[df['position'] < df['position'].shift(1), 'end_stock'] = df['close'].shift(1)
+
