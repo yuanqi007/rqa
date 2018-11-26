@@ -209,3 +209,32 @@ def trade_describe(df):
     df.loc[df['position'] < df['position'].shift(1), 'end_capital'] = df['capital'].shift(1)
     df.loc[df['position'] < df['position'].shift(1), 'end_stock'] = df['close'].shift(1)
 
+    # 将买卖当天的信息合并成一个DATAFRAME
+    df_temp = df[df['start_date'].notnull() | df['end_date'].notnull()]
+
+    df_temp['end_date'] = df_temp['end_date'].shift(-1)
+    df_temp['end_capital'] = df_temp['end_capital'].shift(-1)
+    df_temp['end_stock'] = df_temp['end_stock'].shift(-1)
+
+    # 构建账户交易情况DATAFRAME：'hold_time'持有天数，'trade_return'该交易盈亏，'stock_return'同期股票涨跌幅
+    trade = df_temp.loc[df_temp['end_date'].notnull(), ['start_date', 'start_capital', 'start_stock', 'end_date', 'end_capital', 'end_stock']]
+    trade.reset_index(drop=True, inplace=True)
+    trade['hold_time'] = (trade['end_date'] - trade['start_date']).dt.days
+    trade['trade_return'] = trade['end_capital'] / trade['start_capital'] - 1
+    trade['stock_return'] = trade['end_stock'] / trade['start_stock'] - 1
+
+    # 计算交易次数
+    trade_num = len(trade)
+    # 计算最长持有天数
+    max_holdtime = trade['hold_time'].max()
+    # 计算平均涨幅
+    average_change = trade['trade_return'].mean()
+    # 计算单笔最大盈利
+    max_gain = trade['trade_return'].max()
+    # 计算单笔最大亏损
+    max_loss = trade['trade_return'].min()
+    # 计算年平均买卖次数
+    total_years = (trade['end_date'].iloc[-1] - trade['start_date'].iloc[0]).days / 365
+    trade_per_year = trade_num / total_years
+
+
