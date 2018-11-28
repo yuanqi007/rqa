@@ -2,9 +2,11 @@ from __future__ import division
 
 import numpy as np
 import pandas as pd
-import warnings
+#import warnings
+import sys
 
-warnings.formatwarnings('ignore')
+#warnings.formatwarning('ignore')
+
 
 # 计算复权价格
 def cal_right_price(input_stock_data, type='前复权'):
@@ -30,21 +32,29 @@ def cal_right_price(input_stock_data, type='前复权'):
 
 
 # 获取指定股票对应的数据并按日期升序排序
-def get_stock_data(stock_code):
+def get_stock_data(filename, crp_type=''):
     '''
 
-    :param stock_code: 股票代码
+    :param filename: 文件路径+文件名
+    :param crp_type: 前复权、后复权，默认为不计算复权
     :return: 返回股票数据集（代码、日期、开盘价、收盘价、涨跌幅）
     '''
 
-    # 此处为存放CSV文件的本地路径，请自行改正地址
-    stock_data = pd.read_csv('',parse_dates=['date'])
+    # 此处为存放EXCEL文件的本地路径，请自行改正地址
+    # 文件字段名：'date','open','close','change'
+    stock_data = pd.read_excel(filename,parse_dates=['date'],date_parser=lambda x: x.split(',')[0])
+
     stock_data = stock_data[['code', 'date', 'open', 'close', 'change']]
+
+    # 计算涨跌幅
+    stock_data['change'] = stock_data['close'] / stock_data['close'].shift(1) - 1
+
     stock_data.sort_values(by='date', inplace=True)
     stock_data.reset_index(drop=True, inplace=True)
 
     #计算复权价格
-    stock_data[['open', 'close']] = cal_right_price(stock_data, type='后复权')
+    if crp_type in ('后复权','前复权'):
+        stock_data[['open', 'close']] = cal_right_price(stock_data, type='后复权')
     return stock_data
 
 # 判断交易天数，如有不满足就不运行程序
@@ -58,7 +68,7 @@ def stock_trading_days(stock_data, trading_days=500):
 
     if len(stock_data) < trading_days:
         print('股票上市时间过短，不运行策略')
-        exit(1)
+        sys.exit(1)
 
 # 简单均线策略，输出每天的仓位
 def simple_ma(stock_data, window_short=5, window_long=60):
@@ -85,7 +95,8 @@ def simple_ma(stock_data, window_short=5, window_long=60):
     stock_data['position'].fillna(method='ffill', inplace=True)
     stock_data['position'].fillna(0, inplace=True)
 
-    return stock_data[['code', 'date', 'open', 'close', 'change', 'position']]
+    return stock_data
+    #return stock_data[['code', 'date', 'open', 'close', 'change', 'position']]
 
 
 # 根据每日仓位计算总资产的日收益率
@@ -112,6 +123,7 @@ def account(df, slippage=1.0/1000, commision_rate=2.5/1000):
     df.loc[df['position'] == df['position'].shift(1), 'capital_rtn'] = df['change'] * df['position']
 
     df['capital_rtn'].iloc[0] = 0
+    df['capital'] = (1 + df['capital_rtn']).cumprod()
 
     return df
 
@@ -129,7 +141,7 @@ def select_date_range(stock_data, start_date=pd.to_datetime('20060101'), trade_d
     stock_data = stock_data[stock_data['date'] >= start_date]
     stock_data.reset_index(inplace=True, drop=True)
 
-    return  stock_data
+    return stock_data
 
 # 计算最近250天的股票，策略累计涨跌幅，以及每年（月、周）股票策略收益
 def period_return(stock_data, days=250, if_print=False):
@@ -236,5 +248,98 @@ def trade_describe(df):
     # 计算年平均买卖次数
     total_years = (trade['end_date'].iloc[-1] - trade['start_date'].iloc[0]).days / 365
     trade_per_year = trade_num / total_years
+
+    # 计算连续盈利的次数
+    trade.loc[trade['trade_return'] > 0, 'gain'] = 1
+    trade.loc[trade['trade_return'] < 0, 'gain'] = 0
+    trade['gain'].fillna(method='ffill', inplace=True)
+    # 根据gain这一列计算连续盈利亏损的次数
+    rtn_list = list(trade['gain'])
+    successive_gain_list = []
+    num = 1
+    for i in range(len(rtn_list)):
+        if i == 0:
+            successive_gain_list.append(num)
+        else:
+            if (rtn_list[i] == rtn_list[i - 1] == 1) or (rtn_list[i] == rtn_list[i - 1] == 0):
+                num += 1
+            else:
+                num = 1
+            successive_gain_list.append(num)
+
+    # 将计算结果赋给新的一列'successive_gain'
+    trade['successive_gain'] = successive_gain_list
+    # 分别在盈利和亏损的两个dataframe里按照'successive_gain'的值排序并取最大值
+    max_successive_gain = trade['successive_gain'].loc[trade['gain'] == 1].max()
+    max_successive_loss = trade['successive_gain'].loc[trade['gain'] == 0].max()
+
+    # 输出账户交易各项指标
+    print('\n=================每笔交易收益率及同期股票涨跌幅=================')
+    print(trade[['start_date', 'end_date', 'trade_return', 'stock_return']])
+    print('\n=================账户各项交易指标=================')
+    print('交易次数为：%d，最长只有天数为：%d' % (trade_num, max_holdtime))
+    print('每次平均涨幅为：%f' % average_change)
+    print('单次最大盈利为：%f，单次最大亏损为：%f' % (max_gain, max_loss))
+    print('年均买卖次数为：%f' % trade_per_year)
+    print('最大连续盈利次数为：%d，最大连续亏损次数为：%d' % (max_successive_gain, max_successive_loss))
+    return trade
+
+# 计算年化收益率函数
+def annual_return(date_line, capital_line):
+    '''
+
+    :param date_line: 日期序列
+    :param capital_line: 账户价值序列
+    :return: 输出在回测期间的年化收益率
+    '''
+    # 将数据序列合并到dataframe并按日期排序
+    df = pd.DataFrame({'date': date_line, 'capital': capital_line})
+    # 计算年化收益率
+    annual = (df['capital'].iloc[-1] / df['capital'].iloc[0]) ** (250 / len(df)) - 1
+    print(annual)
+
+# 计算最大回撤函数
+def max_drawdown(date_line, capital_line):
+    '''
+
+    :param date_line: 日期序列
+    :param capital_line: 账户价值序列
+    :return: 输出最大回撤及考试日期和结束日期
+    '''
+    # 将数据序列合并为一个dataframe并按日期排序
+    df = pd.DataFrame({'date': date_line, 'capital': capital_line})
+    # 计算当前日之前的账户最大价值
+    df['max2here'] = df['capital'].expanding().max()
+    # 计算当日的回撤
+    df['dd2here'] = df['capital'] / df['max2here'] - 1
+    # 计算最大回撤和结束时间
+    temp = df.sort_values(by='dd2here').iloc[0][['date', 'dd2here']]
+    max_dd = temp['dd2here']
+    end_date = temp['date'].strftime('%Y-%m-%d')
+    # 计算开始时间
+    df = df[df['date'] <= end_date]
+    start_date = df.sort_values(by='capital', ascending=False).iloc[0]['date'].strftime('%Y-%m-%d')
+    print('最大回撤为：%f，开始日期：%s，结束日期：%s' % (max_dd, start_date, end_date))
+
+def main():
+
+    # ========== 读取数据
+    stock_data = get_stock_data('')
+    # 判断交易天数是否满足要求
+    stock_trading_days(stock_data, trading_days=500)
+
+    # ========== 执行策略，计算仓位，资金曲线
+    # 计算买卖信号
+    stock_data = simple_ma(stock_data)
+    # 计算策略每天涨幅、每次策略执行获取的收益
+    stock_data = account(stock_data, slippage=1.0/1000, commision_rate=2.5/1000)
+    # 选取时间段
+    stock_data = select_date_range(stock_data, start_date='20050101', trade_days=100)
+
+    # ========== 根据策略执行结果计算评价指标
+
+
+
+
 
 
