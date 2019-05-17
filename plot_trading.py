@@ -123,7 +123,6 @@ def account(df, slippage=1.0/1000, commision_rate=2.5/1000):
     df.loc[df['position'] == df['position'].shift(1), 'capital_rtn'] = df['change'] * df['position']
 
     df['capital_rtn'].iloc[0] = 0
-    df['capital'] = (1 + df['capital_rtn']).cumprod()
 
     return df
 
@@ -218,8 +217,8 @@ def trade_describe(df):
 
     # 记录卖出的日期和初始资产
     df.loc[df['position'] < df['position'].shift(1), 'end_date'] = df['date']
-    df.loc[df['position'] < df['position'].shift(1), 'end_capital'] = df['capital'].shift(1)
-    df.loc[df['position'] < df['position'].shift(1), 'end_stock'] = df['close'].shift(1)
+    df.loc[df['position'] < df['position'].shift(1), 'end_capital'] = df['capital']
+    df.loc[df['position'] < df['position'].shift(1), 'end_stock'] = df['close']
 
     # 将买卖当天的信息合并成一个DATAFRAME
     df_temp = df[df['start_date'].notnull() | df['end_date'].notnull()]
@@ -324,7 +323,7 @@ def max_drawdown(date_line, capital_line):
 def main():
 
     # ========== 读取数据
-    stock_data = get_stock_data('')
+    stock_data = get_stock_data('d:\\rqadatas\\')
     # 判断交易天数是否满足要求
     stock_trading_days(stock_data, trading_days=500)
 
@@ -334,9 +333,15 @@ def main():
     # 计算策略每天涨幅、每次策略执行获取的收益
     stock_data = account(stock_data, slippage=1.0/1000, commision_rate=2.5/1000)
     # 选取时间段
-    stock_data = select_date_range(stock_data, start_date='20050101', trade_days=100)
+    return_data = select_date_range(stock_data, start_date='20050101', trade_days=100)
+    return_data['capital'] = (1+return_data['capital_rtn']).cumprod()
 
     # ========== 根据策略执行结果计算评价指标
+    # 计算最近250天的股票，策略累计涨跌幅，以及每年、月、周股票和策略的收益
+    period_return(return_data, days=250, if_print=True)
+    # 根据每次买卖结果，计算相关指标
+    trade_describe(stock_data)
+
 
 
 
